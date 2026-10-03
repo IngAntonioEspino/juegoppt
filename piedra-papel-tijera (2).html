@@ -1,0 +1,383 @@
+<!DOCTYPE html> <!-- Indica al navegador que es un documento HTML5 -->
+<html lang="es"> <!-- Raíz del documento; lang="es" ayuda a lectores de pantalla y traductores -->
+
+<head> <!-- Aquí va la información del documento (NO el contenido visible) -->
+    <meta charset="utf-8"> <!-- Codificación UTF-8: necesaria para acentos y emojis -->
+    <meta name="viewport" content="width=device-width, initial-scale=1"> <!-- Hace que se vea bien en celulares -->
+    <title>Piedra, papel o tijera</title> <!-- Título de la pestaña del navegador -->
+    <script src="https://cdn.jsdelivr.net/npm/@hiseb/confetti@2.2.0/dist/confetti.min.js" defer></script> <!-- Librería de confeti; defer = se descarga sin bloquear la página -->
+
+    <style> /* Estilos CSS de la página */
+        body { /* Reglas para todo el cuerpo de la página */
+            font-family: system-ui, sans-serif; /* Fuente limpia del sistema */
+            text-align: center; /* Centra todo el texto */
+            max-width: 520px; /* Ancho máximo para que no se estire en pantallas grandes */
+            margin: clamp(.75rem, 4vw, 2rem) auto; /* Separación que se adapta al tamaño de pantalla */
+            padding: 0 1rem; /* Margen interno para celulares */
+            overflow-x: hidden; /* Evita barra horizontal durante las animaciones */
+        } /* Fin de las reglas de body */
+
+        .opciones { /* Contenedor de los 3 botones */
+            display: flex; /* Coloca los botones en fila */
+            flex-wrap: wrap; /* Si no caben, bajan a otra fila (responsive) */
+            gap: .5rem; /* Espacio entre botones */
+            justify-content: center; /* Los centra */
+        } /* Fin de .opciones */
+
+        button { /* Estilo de todos los botones */
+            font-size: clamp(2rem, 10vw, 2.8rem); /* Emojis grandes que escalan con la pantalla */
+            min-width: 64px; min-height: 64px; /* Tamaño mínimo cómodo para tocar con el dedo */
+            padding: .5rem 1rem; /* Espacio interno del botón */
+            transition: transform .15s, background .2s; /* Suaviza el cambio al interactuar */
+            cursor: pointer; /* Cursor de mano al pasar encima */
+            border: 2px solid #333; /* Borde oscuro */
+            border-radius: 12px; /* Esquinas redondeadas */
+            background: #fff; /* Fondo blanco */
+        } /* Fin de button */
+
+        button:hover, button:focus-visible { /* Al pasar el mouse o enfocar con teclado */
+            background: #ffe9a8; /* Resalta con amarillo suave */
+            transform: translateY(-4px) scale(1.08); /* El botón "salta" un poco */
+        } /* Fin del hover */
+
+        button:active { transform: scale(.94); } /* Se "hunde" al presionarlo */
+        button:disabled { opacity: .5; cursor: wait; transform: none; } /* Bloqueado mientras corre la animación */
+
+        .arena { /* Zona donde se enfrentan las dos manos */
+            display: flex; /* Pone las manos en fila */
+            align-items: center; /* Centra verticalmente */
+            justify-content: center; /* Centra horizontalmente */
+            gap: clamp(.5rem, 4vw, 2rem); /* Espacio entre manos que se adapta */
+            margin: clamp(1rem, 5vw, 2rem) 0 0; /* Separación superior */
+        } /* Fin de .arena */
+
+        .mano { /* Cada mano (jugador y PC) */
+            font-size: clamp(3.5rem, 22vw, 7rem); /* Tamaño enorme pero adaptable */
+            line-height: 1; /* Evita espacio extra alrededor del emoji */
+            transition: filter .3s, opacity .3s; /* Suaviza ganar/perder */
+        } /* Fin de .mano */
+
+        #manoPC { transform: scaleX(-1); } /* Voltea la mano de la PC para que mire al jugador */
+
+        .vs { font-weight: 800; font-size: clamp(1rem, 5vw, 1.5rem); color: #888; } /* Texto "VS" central */
+
+        .agitar { animation: agitar .3s ease-in-out 3; } /* Sacude la mano 3 veces: "piedra, papel, tijera" */
+        .gana { animation: pulso .6s ease-out; filter: drop-shadow(0 0 14px gold); } /* Ganador: late y brilla */
+        .pierde { opacity: .35; filter: grayscale(1); animation: caer .5s ease-out; } /* Perdedor: se apaga */
+        .empate { animation: rebote .5s ease-out; } /* Empate: rebota */
+
+        @keyframes agitar { /* Movimiento de sacudida */
+            0%, 100% { translate: 0 0; rotate: 0deg; } /* Posición inicial y final */
+            50% { translate: 0 -22px; rotate: -12deg; } /* A mitad sube e inclina */
+        } /* Fin de agitar */
+        @keyframes pulso { 0% { scale: .6; } 60% { scale: 1.35; } 100% { scale: 1; } } /* Crece con rebote y se asienta */
+        @keyframes caer { 0% { translate: 0 -20px; } 100% { translate: 0 0; } } /* Cae suavemente */
+        @keyframes rebote { 0%, 100% { scale: 1; } 40% { scale: 1.25; } 70% { scale: .9; } } /* Pequeño rebote */
+        @keyframes aparece { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } } /* Entrada del texto */
+        @keyframes bump { 40% { scale: 1.15; color: #d97706; } } /* El marcador se agranda un instante */
+
+        #resultado { /* Texto que muestra quién ganó */
+            font-size: 1.4rem; /* Tamaño grande */
+            min-height: 4.5rem; /* Reserva espacio para que la página no "salte" al cambiar el texto */
+            font-size: clamp(1.1rem, 5vw, 1.4rem); /* Tamaño adaptable (sobrescribe el de arriba) */
+            margin: 1.5rem 0 1rem; /* Separación vertical */
+        } /* Fin de #resultado */
+
+        #reiniciar { /* Botón de reiniciar marcador */
+            font-size: 1rem; /* Más pequeño que los de juego */
+            margin-top: 1rem; /* Separación superior */
+        } /* Fin de #reiniciar */
+
+        #final { /* Pantalla final al ganar 10 partidas */
+            position: fixed; /* Se fija sobre toda la ventana */
+            inset: 0; /* Cubre de borde a borde */
+            z-index: 1000; /* Encima del juego (el confeti usa un z-index aún mayor, así que cae por delante) */
+            display: flex; /* Para centrar la tarjeta */
+            align-items: center; /* Centrado vertical */
+            justify-content: center; /* Centrado horizontal */
+            padding: 1rem; /* Margen para celulares */
+            background: rgba(0, 0, 0, .6); /* Fondo oscuro semitransparente */
+            animation: aparece .4s ease-out; /* Entrada suave */
+        } /* Fin de #final */
+        .tarjeta { /* Cuadro blanco con el mensaje de campeón */
+            background: #fff; /* Fondo blanco */
+            border-radius: 20px; /* Esquinas redondeadas */
+            padding: clamp(1.2rem, 6vw, 2.2rem); /* Espacio interno adaptable */
+            max-width: 420px; /* Ancho máximo */
+            box-shadow: 0 20px 60px rgba(0, 0, 0, .4); /* Sombra para dar profundidad */
+            animation: entrada .6s cubic-bezier(.2, 1.2, .3, 1); /* Aparece con un ligero rebote */
+        } /* Fin de .tarjeta */
+        .tarjeta h2 { font-size: clamp(1.4rem, 6vw, 2rem); margin: 0 0 .75rem; } /* Título de campeón */
+        .tarjeta button { font-size: 1.2rem; min-height: 0; margin-top: 1rem; padding: .6rem 1.4rem; } /* Botón "Jugar otra vez" */
+        @keyframes entrada { from { scale: .7; opacity: 0; } to { scale: 1; opacity: 1; } } /* Crece desde pequeño mientras aparece */
+
+        [hidden] { display: none !important; } /* Garantiza que lo marcado como hidden realmente se oculte */
+
+        #inicio { margin-top: 2rem; animation: aparece .5s ease-out; } /* Pantalla de bienvenida con entrada suave */
+        #inicio label { display: block; font-size: 1.2rem; margin-bottom: .75rem; } /* Pregunta del nombre */
+        #nombre { /* Campo de texto del nombre */
+            width: 100%; /* Ocupa todo el ancho disponible */
+            max-width: 320px; /* Pero sin pasarse en pantallas grandes */
+            font-size: 1.3rem; /* Texto grande y legible en celular */
+            padding: .6rem .8rem; /* Espacio interno */
+            border: 2px solid #333; /* Mismo borde que los botones */
+            border-radius: 12px; /* Esquinas redondeadas */
+            text-align: center; /* Nombre centrado */
+        } /* Fin de #nombre */
+        #inicio button { font-size: 1.2rem; min-height: 0; margin-top: 1rem; padding: .6rem 1.4rem; } /* Botón "Empezar" más pequeño que los emojis */
+        #errorNombre { color: #c0392b; min-height: 1.5rem; margin: .5rem 0 0; } /* Mensaje de error en rojo */
+        .nombres { display: flex; justify-content: space-around; font-weight: 700; margin-top: .25rem; } /* Rótulos bajo cada mano */
+        #cambiar { font-size: 1rem; margin: 1rem .25rem 0; } /* Botón para cambiar de jugador */
+
+        .aparece { animation: aparece .4s ease-out; } /* Clase que activa la entrada del resultado */
+        .bump { animation: bump .4s ease-out; } /* Clase que activa el "latido" del marcador */
+
+        @media (max-width: 480px) { /* Reglas extra solo para celulares */
+            h2 { font-size: 1.3rem; } /* Título más compacto */
+            .opciones { gap: .4rem; } /* Botones más juntos */
+            #reiniciar, #cambiar { width: 100%; padding: .7rem; margin-left: 0; margin-right: 0; } /* Botones inferiores a todo el ancho */
+        } /* Fin del media query móvil */
+
+        @media (prefers-reduced-motion: reduce) { /* Si el usuario pidió menos movimiento */
+            *, *::before, *::after { animation: none !important; transition: none !important; } /* Desactiva todas las animaciones */
+        } /* Fin de reduced-motion */
+    </style> <!-- Fin de los estilos -->
+</head> <!-- Fin del head: el body va DESPUÉS, no dentro (error del código original) -->
+
+<body> <!-- Contenido visible de la página -->
+    <h2>Piedra, papel o tijera</h2> <!-- Título principal visible -->
+
+    <section id="inicio"> <!-- Pantalla de bienvenida: se muestra hasta que el jugador diga su nombre -->
+        <form id="formNombre"> <!-- Formulario: permite enviar con Enter o con el botón -->
+            <label for="nombre">¿Cómo te llamas?</label> <!-- Etiqueta vinculada al campo (accesibilidad) -->
+            <input id="nombre" type="text" maxlength="20" autocomplete="given-name" placeholder="Tu nombre" required> <!-- Máx. 20 letras; required evita enviarlo vacío -->
+            <p id="errorNombre" role="alert"></p> <!-- Aquí se muestran los avisos de error -->
+            <button type="submit">¡Empezar!</button> <!-- Envía el formulario -->
+        </form> <!-- Fin del formulario -->
+    </section> <!-- Fin de la bienvenida -->
+
+    <section id="juego" hidden> <!-- Zona de juego: oculta hasta tener nombre -->
+        <p id="saludo"></p> <!-- Saludo personalizado según la hora -->
+
+    <p>Elige tu jugada (también puedes usar las teclas 1, 2 o 3):</p> <!-- Instrucciones -->
+
+    <div class="arena" aria-hidden="true"> <!-- Zona de combate (decorativa; el resultado real está en texto abajo) -->
+        <div class="mano" id="manoJugador">✊</div> <!-- Mano del jugador -->
+        <span class="vs">VS</span> <!-- Separador central -->
+        <div class="mano" id="manoPC">✊</div> <!-- Mano de la computadora -->
+    </div> <!-- Fin de la arena -->
+    <div class="nombres" aria-hidden="true"><span id="rotuloJ"></span><span>PC</span></div> <!-- Nombre del jugador y de la PC bajo sus manos -->
+
+    <div class="opciones"> <!-- Contenedor de los botones de juego -->
+        <button data-opcion="1" aria-label="Piedra">✊</button> <!-- data-opcion guarda el número; aria-label describe el emoji -->
+        <button data-opcion="2" aria-label="Papel">✋</button> <!-- Opción 2: papel -->
+        <button data-opcion="3" aria-label="Tijera">✌️</button> <!-- Opción 3: tijera -->
+    </div> <!-- Fin de los botones -->
+
+    <p id="resultado" aria-live="polite"></p> <!-- aria-live: los lectores de pantalla anuncian el resultado -->
+
+    <p id="marcador">Tú: 0 | PC: 0 | Empates: 0</p> <!-- Marcador inicial -->
+
+    <button id="reiniciar">Reiniciar marcador</button> <!-- Pone el marcador en cero -->
+        <button id="cambiar">Cambiar jugador</button> <!-- Vuelve a pedir el nombre -->
+    </section> <!-- Fin de la zona de juego -->
+
+    <div id="final" hidden role="dialog" aria-modal="true" aria-labelledby="finalTitulo"> <!-- Ventana final (role=dialog para lectores de pantalla) -->
+        <div class="tarjeta"> <!-- Tarjeta central -->
+            <h2 id="finalTitulo"></h2> <!-- Título: se llena con el nombre desde JS -->
+            <p id="finalTexto"></p> <!-- Resumen de la partida -->
+            <button id="otraVez">Jugar otra vez</button> <!-- Reinicia todo -->
+        </div> <!-- Fin de la tarjeta -->
+    </div> <!-- Fin de la pantalla final -->
+
+    <script> // JavaScript: va al final del body para que los elementos ya existan
+        "use strict"; // Modo estricto: el navegador avisa de errores comunes (variables sin declarar, etc.)
+
+        // 1 = piedra, 2 = papel, 3 = tijera
+        const OPCIONES = { // Objeto con los datos de cada opción (const: no se reasigna)
+            1: { nombre: "Piedra", emoji: "✊" }, // Datos de la piedra
+            2: { nombre: "Papel", emoji: "✋" }, // Datos del papel
+            3: { nombre: "Tijera", emoji: "✌️" } // Datos de la tijera
+        }; // Fin de OPCIONES
+
+        // Tabla de victorias: cada opción (clave) le gana a la opción de su valor
+        const GANA_A = { 1: 3, 2: 1, 3: 2 }; // Piedra gana a tijera, papel a piedra, tijera a papel
+
+        const marcador = { jugador: 0, pc: 0, empates: 0 }; // Contadores de partidas
+
+        const elResultado = document.getElementById("resultado"); // Guarda el párrafo del resultado
+        const elMarcador = document.getElementById("marcador"); // Guarda el párrafo del marcador
+        const manoJ = document.getElementById("manoJugador"); // Guarda la mano animada del jugador
+        const manoP = document.getElementById("manoPC"); // Guarda la mano animada de la PC
+        const botones = document.querySelectorAll("[data-opcion]"); // Guarda los 3 botones de juego
+        const REDUCIDO = matchMedia("(prefers-reduced-motion: reduce)").matches; // true si el usuario prefiere sin animaciones
+        let ocupado = false; // Evita jugar otra ronda mientras corre la animación
+        let nombre = ""; // Nombre del jugador (se pide al inicio)
+        const META = 10; // Victorias necesarias para terminar el juego
+        const elFinal = document.getElementById("final"); // Pantalla final
+        let lluviaId = 0; // Guarda el temporizador de la lluvia de confeti para poder detenerlo
+        const elInicio = document.getElementById("inicio"); // Pantalla de bienvenida
+        const elJuego = document.getElementById("juego"); // Zona de juego
+        const inputNombre = document.getElementById("nombre"); // Campo de texto del nombre
+        const elError = document.getElementById("errorNombre"); // Párrafo de errores
+        const elSaludo = document.getElementById("saludo"); // Párrafo del saludo
+        const elRotulo = document.getElementById("rotuloJ"); // Rótulo con el nombre bajo la mano
+
+        // Elige la jugada de la computadora AL AZAR (en tu código original siempre era 1)
+        function eleccionPC() { // Declara la función
+            return Math.floor(Math.random() * 3) + 1; // random() da 0 a 0.99; ×3 y floor → 0,1,2; +1 → 1,2,3
+        } // Fin de eleccionPC
+
+        // Decide el resultado comparando ambas jugadas
+        function calcularResultado(jugador, pc) { // Recibe las dos jugadas como números
+            if (jugador === pc) return "empate"; // Si son iguales, nadie gana
+            return GANA_A[jugador] === pc ? "gana" : "pierde"; // Si lo que vence mi jugada es la de la PC, gano; si no, pierdo
+        } // Fin de calcularResultado
+
+        // Juega una ronda completa con animación
+        function jugar(jugador) { // jugador: número 1, 2 o 3
+            if (ocupado) return; // Si ya hay una ronda en curso, ignora el clic
+            ocupado = true; // Marca que empezó la ronda
+            botones.forEach(b => b.disabled = true); // Bloquea los botones durante la animación
+            elResultado.textContent = ""; // Limpia el resultado anterior
+            manoJ.className = manoP.className = "mano agitar"; // Reinicia clases y activa la sacudida
+            manoJ.textContent = manoP.textContent = "✊"; // Ambas manos empiezan como puño
+            const pc = eleccionPC(); // La PC elige (se decide ya, se revela después)
+
+            setTimeout(() => { // Espera a que termine la sacudida (900 ms) para revelar
+                const resultado = calcularResultado(jugador, pc); // Calcula quién ganó
+                let mensaje; // Texto final de la ronda
+
+                if (resultado === "empate") { // Caso empate
+                    marcador.empates++; // Suma 1 a empates
+                    mensaje = `🤝 EMPATE, ${nombre}`; // Texto del empate con el nombre
+                } else if (resultado === "gana") { // Caso victoria del jugador
+                    marcador.jugador++; // Suma 1 a tus victorias
+                    mensaje = `🏆 ¡GANASTE, ${nombre}!`; // Texto de victoria con el nombre
+                } else { // Caso derrota
+                    marcador.pc++; // Suma 1 a las victorias de la PC
+                    mensaje = `❌ PERDISTE, ${nombre}`; // Texto de derrota con el nombre
+                } // Fin del if/else
+
+                manoJ.textContent = OPCIONES[jugador].emoji; // Revela la jugada del jugador
+                manoP.textContent = OPCIONES[pc].emoji; // Revela la jugada de la PC
+                manoJ.className = "mano " + (resultado === "gana" ? "gana" : resultado === "pierde" ? "pierde" : "empate"); // Clase visual del jugador
+                manoP.className = "mano " + (resultado === "pierde" ? "gana" : resultado === "gana" ? "pierde" : "empate"); // Clase visual de la PC (inversa)
+
+                elResultado.textContent = `${nombre} eligió ${OPCIONES[jugador].emoji} · PC eligió ${OPCIONES[pc].emoji} → ${mensaje}`; // Texto accesible del resultado
+                elResultado.classList.remove("aparece"); // Quita la clase para poder repetir la animación
+                void elResultado.offsetWidth; // Fuerza al navegador a recalcular (truco para reiniciar animaciones CSS)
+                elResultado.classList.add("aparece"); // Activa la animación de entrada
+
+                actualizarMarcador(); // Refresca el marcador
+                elMarcador.classList.remove("bump"); // Quita la clase para reiniciar la animación
+                void elMarcador.offsetWidth; // Mismo truco de reinicio
+                elMarcador.classList.add("bump"); // Anima el marcador
+
+                botones.forEach(b => b.disabled = false); // Reactiva los botones
+                ocupado = false; // Libera para la siguiente ronda
+                if (marcador.jugador === META) setTimeout(mostrarFinal, REDUCIDO ? 0 : 1300); // Al llegar a 10 victorias, espera a que se vea la última jugada y muestra el final
+            }, REDUCIDO ? 0 : 900); // Sin espera si el usuario prefiere menos movimiento
+        } // Fin de jugar
+
+        // Escribe el marcador en la página
+        function actualizarMarcador() { // Sin parámetros: lee el objeto marcador
+            elMarcador.textContent = // Cambia el texto del párrafo
+                `${nombre}: ${marcador.jugador}/${META} | PC: ${marcador.pc} | Empates: ${marcador.empates}`; // Inserta cada contador
+        } // Fin de actualizarMarcador
+
+        // Conecta cada botón de juego con la función jugar()
+        document.querySelectorAll("[data-opcion]").forEach(boton => { // Busca todos los botones con data-opcion y recorre cada uno
+            boton.addEventListener("click", () => { // Cuando se haga clic en el botón...
+                jugar(Number(boton.dataset.opcion)); // ...convierte su data-opcion (texto) a número y juega
+            }); // Fin del listener de clic
+        }); // Fin del recorrido de botones
+
+        // Atajo de teclado: teclas 1, 2 y 3
+        document.addEventListener("keydown", e => { // Escucha cualquier tecla presionada en la página
+            if (!elFinal.hidden) { if (e.key === "Escape") cerrarFinal(); return; } // Con el final abierto: Esc lo cierra y se ignoran las demás teclas
+            if (elJuego.hidden || e.target.tagName === "INPUT") return; // Ignora teclas si aún no hay nombre o si se está escribiendo
+            if (OPCIONES[e.key]) jugar(Number(e.key)); // Si la tecla es 1, 2 o 3 (existe en OPCIONES), juega esa opción
+        }); // Fin del listener de teclado
+
+        // Botón de reinicio
+        document.getElementById("reiniciar").addEventListener("click", () => { // Al hacer clic en "Reiniciar"...
+            marcador.jugador = marcador.pc = marcador.empates = 0; // ...pone los tres contadores en 0
+            elResultado.textContent = ""; // Limpia el mensaje anterior
+            manoJ.className = manoP.className = "mano"; // Quita animaciones de las manos
+            manoJ.textContent = manoP.textContent = "✊"; // Vuelve a puños
+            actualizarMarcador(); // Muestra el marcador en cero
+        }); // Fin del listener de reinicio
+
+        // ---------- Final del juego: confeti ----------
+        function lluviaConfeti() { // Lanza una explosión inicial y luego papelitos que caen suavemente
+            if (REDUCIDO || typeof confetti !== "function") return; // Sin animación si el usuario lo pidió o si la librería no cargó (sin internet)
+            const paleta = ["#F43F5E", "#8B5CF6", "#06B6D4", "#FACC15", "#22C55E", "#FB923C"]; // Colores de los papelitos
+            confetti({ position: { x: innerWidth / 2, y: innerHeight / 3 }, count: 120, size: 1.3, velocity: 90, color: paleta }); // Explosión central de bienvenida
+            let vueltas = 0; // Cuenta cuántas tandas de papelitos se han lanzado
+            lluviaId = setInterval(() => { // Cada 150 ms lanza una tanda
+                confetti({ // Una tanda de papelitos...
+                    position: { x: Math.random() * innerWidth, y: -20 }, // ...desde un punto al azar justo arriba de la pantalla
+                    count: 8, size: 1.3, velocity: 30, // Pocos, medianos y con poca velocidad inicial: caen despacio como papel real
+                    color: paleta // Misma paleta de colores
+                }); // Fin de la tanda
+                if (++vueltas >= 45) clearInterval(lluviaId); // Tras ~6.7 segundos deja de lanzar más
+            }, 150); // Intervalo entre tandas en milisegundos
+        } // Fin de lluviaConfeti
+
+        function mostrarFinal() { // Muestra la pantalla de campeón
+            document.getElementById("finalTitulo").textContent = `🏆 ¡${nombre}, eres el campeón!`; // Título con el nombre
+            document.getElementById("finalTexto").textContent = // Resumen de la partida
+                `Llegaste a ${META} victorias. La PC ganó ${marcador.pc} y hubo ${marcador.empates} empates. ¡Increíble!`; // Datos del marcador final
+            elFinal.hidden = false; // Hace visible la ventana
+            document.getElementById("otraVez").focus(); // Pasa el foco al botón (teclado y lectores de pantalla)
+            lluviaConfeti(); // ¡Confeti!
+        } // Fin de mostrarFinal
+
+        function cerrarFinal() { // Cierra la ventana y empieza de cero
+            clearInterval(lluviaId); // Detiene los nuevos papelitos (los que ya caen terminan solos)
+            elFinal.hidden = true; // Oculta la ventana
+            document.getElementById("reiniciar").click(); // Reinicia marcador y manos
+        } // Fin de cerrarFinal
+
+        document.getElementById("otraVez").addEventListener("click", cerrarFinal); // El botón "Jugar otra vez" cierra y reinicia
+
+        // ---------- Personalización: nombre del jugador ----------
+        function saludoHora() { // Devuelve un saludo según la hora del dispositivo
+            const h = new Date().getHours(); // Hora actual (0 a 23)
+            return h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches"; // Mañana, tarde o noche
+        } // Fin de saludoHora
+
+        function empezar(n) { // Arranca la partida con el nombre ya validado
+            nombre = n; // Guarda el nombre en la variable global
+            try { localStorage.setItem("nombreJugador", n); } catch (e) {} // Lo recuerda para la próxima vez (try por si el navegador lo bloquea)
+            elSaludo.textContent = `${saludoHora()}, ${n} 👋 ¿Listo para ganarle a la PC?`; // Saludo personalizado
+            elRotulo.textContent = n; // Nombre bajo tu mano
+            elInicio.hidden = true; // Oculta la bienvenida
+            elJuego.hidden = false; // Muestra el juego
+            actualizarMarcador(); // Marcador con tu nombre
+        } // Fin de empezar
+
+        document.getElementById("formNombre").addEventListener("submit", e => { // Al enviar el formulario...
+            e.preventDefault(); // ...evita que la página se recargue
+            const n = inputNombre.value.trim().replace(/\s+/g, " "); // Quita espacios sobrantes al inicio, final y en medio
+            if (n.length < 2) { elError.textContent = "Escribe al menos 2 letras 🙂"; return; } // Valida longitud mínima
+            elError.textContent = ""; // Limpia errores previos
+            empezar(n); // Comienza la partida
+        }); // Fin del listener del formulario
+
+        document.getElementById("cambiar").addEventListener("click", () => { // Botón "Cambiar jugador"
+            document.getElementById("reiniciar").click(); // Reutiliza el reinicio: marcador y manos en cero
+            elJuego.hidden = true; // Oculta el juego
+            elInicio.hidden = false; // Muestra la bienvenida
+            inputNombre.focus(); // Pone el cursor en el campo para escribir
+        }); // Fin de cambiar jugador
+
+        let guardado = ""; // Nombre recordado de una visita anterior
+        try { guardado = localStorage.getItem("nombreJugador") || ""; } catch (e) {} // Lo lee si existe
+        if (guardado) empezar(guardado); // Si ya jugó antes, salta la bienvenida
+        else inputNombre.focus(); // Si no, enfoca el campo del nombre
+    </script> <!-- Fin del script -->
+</body> <!-- Fin del body -->
+
+</html> <!-- Fin del documento -->
